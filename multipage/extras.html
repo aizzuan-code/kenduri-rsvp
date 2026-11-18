@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenduri RSVP — Time &amp; Extras</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Izzat &amp; Aisyah's Kenduri</h1>
+    <p>Dewan Seri Melati, Shah Alam · 12 Dec 2026</p>
+  </header>
+
+  <div id="chips"></div>
+
+  <section>
+    <h2>Step 4 · Arrival time &amp; extras</h2>
+
+    <label>Your arrival slot *</label>
+    <div class="slot-grid" id="slots"></div>
+
+    <label style="margin-top:16px">Gift preference (so the couple knows!)</label>
+    <div class="pill-row">
+      <button type="button" class="pill" data-g="cash" onclick="setGift('cash')">💵 Cash</button>
+      <button type="button" class="pill" data-g="household" onclick="setGift('household')">🏠 Household item</button>
+      <button type="button" class="pill" data-g="none" onclick="setGift('none')">🙏 Kehadiran is enough</button>
+    </div>
+
+    <label for="song">Song request (optional) 🎤</label>
+    <input type="text" id="song" placeholder="What song gets you on the dance floor?">
+
+    <label for="wish">Ucapan / well-wishes (optional) 💌</label>
+    <textarea id="wish" rows="3" placeholder="Leave your wishes for Izzat & Aisyah…"></textarea>
+
+    <p class="error" id="error"></p>
+    <div class="btn-row">
+      <a class="btn secondary" href="menu.html">← Back</a>
+      <button class="btn" onclick="next()">Submit RSVP 🎉</button>
+    </div>
+  </section>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  const draft = loadDraft();
+  if (!draft.name) location.href = "rsvp.html"; // entered this page directly
+  const pax = 1 + (draft.members || []).length;
+  let slot = draft.slot || null;
+  let gift = draft.gift || "";
+
+  const rsvps = loadRsvps();
+  const grid = document.getElementById("slots");
+  KENDURI.slots.forEach(s => {
+    const taken = rsvps.filter(r => r.coming && r.slot === s.id).reduce((sum, r) => sum + paxOf(r), 0);
+    const left = Math.max(0, s.capacity - taken);
+    const div = document.createElement("div");
+    div.className = "slot" + (left === 0 ? " full" : "");
+    div.innerHTML = `<div class="slot-time">${s.label}</div><div class="slot-left">${left === 0 ? "Fully booked" : left + " seats left"}</div>`;
+    if (left > 0) div.onclick = () => { slot = s.id; sync(); };
+    grid.appendChild(div);
+  });
+
+  document.getElementById("song").value = draft.song || "";
+  document.getElementById("wish").value = draft.wish || "";
+
+  function setGift(g) { gift = g; sync(); }
+  function sync() {
+    document.querySelectorAll(".slot").forEach((el, i) => el.classList.toggle("selected", KENDURI.slots[i].id === slot));
+    document.querySelectorAll(".pill[data-g]").forEach(p => p.classList.toggle("selected", p.dataset.g === gift));
+  }
+  sync();
+
+  function next() {
+    if (!slot) { document.getElementById("error").textContent = "Please choose an arrival time slot."; return; }
+    if (!gift) { document.getElementById("error").textContent = "Please pick a gift preference."; return; }
+    saveDraft({
+      slot, gift,
+      song: document.getElementById("song").value.trim(),
+      wish: document.getElementById("wish").value.trim()
+    });
+    // commit the RSVP (or send back to update if this name+phone already replied)
+    const d = loadDraft();
+    const list = loadRsvps();
+    const existing = findDuplicate(list, d.name, d.phone);
+    if (existing) {
+      alert("This name and phone has already replied. Use Update my RSVP with your code: " + existing.code);
+      clearDraft();
+      location.href = "update.html";
+      return;
+    }
+    list.push({
+      id: "r" + Date.now(), code: makeCode(), name: d.name, phone: d.phone, email: d.email,
+      coming: d.coming !== false, members: d.members || [], dishes: d.dishes || [],
+      dietary: d.dietary || [], slot: d.slot, gift: d.gift, song: d.song, wish: d.wish,
+      at: nowLabel()
+    });
+    saveRsvps(list);
+    const myCode = list[list.length - 1].code;
+    clearDraft();
+    location.href = "done.html?code=" + encodeURIComponent(myCode);
+  }
+  document.getElementById('chips').innerHTML = stepChips(4);
+</script>
+</body>
+</html>

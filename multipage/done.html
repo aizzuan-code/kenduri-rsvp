@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenduri RSVP — Your e-Badge</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Izzat &amp; Aisyah's Kenduri</h1>
+    <p>Dewan Seri Melati, Shah Alam · 12 Dec 2026</p>
+  </header>
+
+  <div id="chips"></div>
+
+  <div class="ebadge" id="badge">
+    <div class="ebadge-inner">
+      <div class="ebadge-left">
+        <div class="code" id="b-code">—</div>
+        <div class="b-name" id="b-name">—</div>
+        <div class="b-line" id="b-pax">—</div>
+        <div class="b-line" id="b-slot">—</div>
+        <div class="b-line" id="b-menu">—</div>
+        <div class="b-role">GUEST</div>
+      </div>
+      <div class="ebadge-right">
+        <div id="qr2"></div>
+        <div class="stamp">✔ ARRIVED</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="notice-band">Please don't close this page! Show this screen at the kenduri entrance.<br>Alternatively, capture this screen to use it later.</div>
+
+  <div class="card" style="margin-top:16px">
+    <h2>Changed your plans?</h2>
+    <p style="color:var(--muted);font-size:0.9rem">Keep your code and update your RSVP any time — no duplicate needed.</p>
+    <div class="btn-row">
+      <a class="btn secondary" href="update.html">✏️ Update my RSVP</a>
+      <a class="btn" href="index.html">← Back to welcome</a>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  document.getElementById("chips").innerHTML = stepChips(5);
+  const list = loadRsvps();
+  const params = new URLSearchParams(location.search);
+  let me = params.get("code") ? findByCode(list, params.get("code")) : list[list.length - 1];
+
+  if (me) {
+    document.getElementById("b-code").textContent = me.code || "KDR26-??????";
+    document.getElementById("b-name").textContent = me.name;
+    document.getElementById("b-pax").textContent = me.coming ? (paxOf(me) + " pax coming") : "Not attending";
+    document.getElementById("b-slot").textContent = me.coming && me.slot ? "Slot: " + slotById(me.slot).label : "";
+    document.getElementById("b-menu").textContent = me.coming && me.dishes.length
+      ? "Menu: " + me.dishes.map(id => dishById(id).name).join(", ") : "";
+    drawQr(document.getElementById("qr2"), (me.code || "") + "|" + me.name, 130);
+    // show ARRIVED stamp if the host has checked this guest in
+    if (me.arrived) document.getElementById("badge").classList.add("arrived");
+    confetti();
+  } else {
+    document.getElementById("b-name").textContent = "No RSVP found in this browser yet.";
+    document.getElementById("b-code").textContent = "—";
+  }
+</script>
+</body>
+</html>

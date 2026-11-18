@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenduri RSVP — Members</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Izzat &amp; Aisyah's Kenduri</h1>
+    <p>Dewan Seri Melati, Shah Alam · 12 Dec 2026</p>
+  </header>
+
+  <div id="chips"></div>
+
+  <section>
+    <h2>Step 2 · Who is coming with you?</h2>
+    <p style="color:var(--muted);font-size:0.9rem">Add each family member or friend travelling with you. Total headcount updates automatically.</p>
+
+    <div class="summary-box">Total pax: <b id="pax-total">1</b> (you <span id="pax-you">+ 0 member(s)</span>)</div>
+
+    <div id="members"></div>
+
+    <button type="button" class="btn secondary" style="margin-top:12px;width:100%" onclick="addMember()">+ Add another member</button>
+
+    <p class="error" id="error"></p>
+    <div class="btn-row">
+      <a class="btn secondary" href="rsvp.html">← Back</a>
+      <button class="btn" onclick="next()">Continue →</button>
+    </div>
+  </section>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  let members = (loadDraft().members || []).slice();
+  const relSel = KENDURI.relationships.map(r => `<option value="${r}">${r}</option>`).join("");
+
+  function render() {
+    const box = document.getElementById("members");
+    box.innerHTML = "";
+    members.forEach((m, i) => {
+      const row = document.createElement("div");
+      row.className = "member-row";
+      row.innerHTML = `
+        <div>
+          <label>Member ${i + 1} name</label>
+          <input type="text" value="${m.name.replace(/"/g, "&quot;")}" data-i="${i}" data-f="name" placeholder="Full name">
+        </div>
+        <div>
+          <label>Relationship</label>
+          <select data-i="${i}" data-f="rel">${relSel}</select>
+        </div>
+        <button type="button" class="remove" onclick="removeMember(${i})">✕ Remove</button>`;
+      row.querySelector(`select[data-i="${i}"]`).value = m.rel;
+      row.querySelectorAll("input,select").forEach(el => {
+        el.addEventListener("input", e => {
+          members[+e.target.dataset.i][e.target.dataset.f] = e.target.value;
+        });
+      });
+      box.appendChild(row);
+    });
+    document.getElementById("pax-total").textContent = 1 + members.length;
+    document.getElementById("pax-you").textContent = "+ " + members.length + " member(s)";
+  }
+
+  function addMember() {
+    members.push({ name: "", rel: "Spouse" });
+    render();
+  }
+  function removeMember(i) { members.splice(i, 1); render(); }
+
+  function next() {
+    const empty = members.some(m => !m.name.trim());
+    if (empty) { document.getElementById("error").textContent = "Please fill in every member's name (or remove the empty row)."; return; }
+    saveDraft({ members: members.map(m => ({ name: m.name.trim(), rel: m.rel })) });
+    location.href = "menu.html";
+  }
+
+  render();
+  document.getElementById('chips').innerHTML = stepChips(2);
+</script>
+</body>
+</html>

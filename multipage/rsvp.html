@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenduri RSVP — Your Details</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Izzat &amp; Aisyah's Kenduri</h1>
+    <p>Dewan Seri Melati, Shah Alam · 12 Dec 2026</p>
+  </header>
+
+  <div id="chips"></div>
+
+  <section>
+    <h2>Step 1 · Your details</h2>
+    <label for="name">Full name *</label>
+    <input type="text" id="name" placeholder="e.g. Siti Nurhaliza" autocomplete="name">
+
+    <label for="phone">Phone number *</label>
+    <input type="tel" id="phone" placeholder="012-345 6789" autocomplete="tel">
+
+    <label for="email">Email *</label>
+    <input type="email" id="email" placeholder="you@example.com" autocomplete="email">
+
+    <label>Will you attend?</label>
+    <div class="pill-row">
+      <button type="button" class="pill" id="pill-yes" onclick="setComing(true)">Yes, saya datang! 🎉</button>
+      <button type="button" class="pill" id="pill-no" onclick="setComing(false)">No, tak dapat hadir 😢</button>
+    </div>
+
+    <div id="no-extra" style="display:none">
+      <label for="wish-no">Leave a wish for the couple (optional)</label>
+      <textarea id="wish-no" rows="2" placeholder="Ucapan / well-wishes…"></textarea>
+    </div>
+
+    <p class="error" id="error"></p>
+    <div class="btn-row">
+      <a class="btn secondary" href="index.html">← Back</a>
+      <button class="btn" id="next-btn" onclick="next()">Continue →</button>
+    </div>
+  </section>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  let coming = null;
+  // Re-entering the flow: prefill from an in-progress draft.
+  const draft = loadDraft();
+  if (draft.name) document.getElementById("name").value = draft.name;
+  if (draft.phone) document.getElementById("phone").value = draft.phone;
+  if (draft.email) document.getElementById("email").value = draft.email;
+  if (draft.coming === true) setComing(true);
+  if (draft.coming === false) setComing(false);
+
+  function setComing(v) {
+    coming = v;
+    document.getElementById("pill-yes").classList.toggle("selected", v === true);
+    document.getElementById("pill-no").classList.toggle("selected", v === false);
+    document.getElementById("no-extra").style.display = v === false ? "block" : "none";
+    document.getElementById("error").textContent = "";
+  }
+
+  function next() {
+    const name = document.getElementById("name").value.trim();
+    const phone = document.getElementById("phone").value.trim();
+    const email = document.getElementById("email").value.trim();
+    const err = document.getElementById("error");
+    if (!name) { err.textContent = "Please enter your full name."; return; }
+    if (!/^[0-9+\-\s()]{7,}$/.test(phone)) { err.textContent = "Please enter a valid phone number (e.g. 012-345 6789)."; return; }
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { err.textContent = "Please enter a valid email address."; return; }
+    if (coming === null) { err.textContent = "Please choose Yes or No."; return; }
+
+    saveDraft({
+      name, phone, email, coming,
+      wish: coming === false ? document.getElementById("wish-no").value.trim() : (draft.wish || ""),
+      members: coming === false ? [] : (draft.members || []),
+      dishes: coming === false ? [] : (draft.dishes || []),
+      dietary: coming === false ? [] : (draft.dietary || []),
+      slot: coming === false ? null : (draft.slot || null),
+      gift: coming === false ? "none" : (draft.gift || ""),
+      song: coming === false ? "" : (draft.song || "")
+    });
+
+    if (coming === true) { location.href = "members.html"; return; }
+    // decline: commit a record immediately with a code (unless already replied)
+    const list = loadRsvps();
+    const existing = findDuplicate(list, name, phone);
+    if (existing) {
+      alert("This name and phone has already replied. Use Update my RSVP with your code: " + existing.code);
+      clearDraft();
+      location.href = "update.html";
+      return;
+    }
+    list.push({
+      id: "r" + Date.now(), code: makeCode(), name, phone, email,
+      coming: false, members: [], dishes: [], dietary: [], slot: null,
+      gift: "none", song: "",
+      wish: document.getElementById("wish-no").value.trim(),
+      at: nowLabel()
+    });
+    saveRsvps(list);
+    const myCode = list[list.length - 1].code;
+    clearDraft();
+    location.href = "done.html?code=" + encodeURIComponent(myCode);
+  }
+  document.getElementById('chips').innerHTML = stepChips(1);
+</script>
+</body>
+</html>

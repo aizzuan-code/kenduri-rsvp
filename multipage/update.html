@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenduri RSVP — Update</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Update your RSVP</h1>
+    <p>Enter your code (e.g. KDR26-ABC123) to change your reply</p>
+  </header>
+
+  <section>
+    <label for="code">Your RSVP code *</label>
+    <div class="checkin-row">
+      <input type="text" id="code" placeholder="KDR26-XXXXXX">
+      <button class="btn" onclick="find()">Find</button>
+    </div>
+    <p class="error" id="error"></p>
+  </section>
+
+  <section id="edit-area" style="display:none">
+    <h2>Editing: <span id="e-name"></span></h2>
+    <label>Attending?</label>
+    <div class="pill-row">
+      <button type="button" class="pill" id="u-yes" onclick="setComing(true)">Yes, saya datang! 🎉</button>
+      <button type="button" class="pill" id="u-no" onclick="setComing(false)">No, tak dapat hadir 😢</button>
+    </div>
+
+    <div id="members-box" style="display:none">
+      <label>Members travelling with you (comma-separated names)</label>
+      <input type="text" id="members" placeholder="e.g. Zainab binti Bakar, Ahmad Firdaus">
+    </div>
+
+    <div id="slot-box" style="display:none">
+      <label>Arrival slot</label>
+      <div class="slot-grid" id="slots"></div>
+    </div>
+
+    <p class="error" id="err2"></p>
+    <div class="btn-row">
+      <button class="btn" onclick="save()">Save changes</button>
+      <a class="btn secondary" href="index.html">Cancel</a>
+    </div>
+  </section>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  let rec = null;
+  let coming = null;
+  let slot = null;
+
+  function find() {
+    const code = document.getElementById("code").value.trim();
+    const list = loadRsvps();
+    rec = findByCode(list, code);
+    const err = document.getElementById("error");
+    if (!rec) { err.textContent = "Code not found — check the letters and try again."; return; }
+    err.textContent = "";
+    document.getElementById("edit-area").style.display = "block";
+    document.getElementById("e-name").textContent = rec.name;
+    document.getElementById("members").value = (rec.members || []).map(m => m.name).join(", ");
+    setComing(rec.coming);
+    slot = rec.slot;
+    renderSlots();
+  }
+
+  function setComing(v) {
+    coming = v;
+    document.getElementById("u-yes").classList.toggle("selected", v === true);
+    document.getElementById("u-no").classList.toggle("selected", v === false);
+    document.getElementById("members-box").style.display = v === true ? "block" : "none";
+    document.getElementById("slot-box").style.display = v === true ? "block" : "none";
+  }
+
+  function renderSlots() {
+    const g = document.getElementById("slots");
+    g.innerHTML = "";
+    KENDURI.slots.forEach(s => {
+      const div = document.createElement("div");
+      div.className = "slot" + (s.id === slot ? " selected" : "");
+      div.innerHTML = `<div class="slot-time">${s.label}</div>`;
+      div.onclick = () => { slot = s.id; renderSlots(); };
+      g.appendChild(div);
+    });
+  }
+
+  function save() {
+    const err = document.getElementById("err2");
+    if (coming === null) { err.textContent = "Choose Yes or No."; return; }
+    if (coming === true && !slot) { err.textContent = "Choose an arrival slot."; return; }
+    const list = loadRsvps();
+    const i = list.findIndex(r => r.id === rec.id);
+    list[i].coming = coming;
+    list[i].members = coming
+      ? document.getElementById("members").value.split(",").map(s => s.trim()).filter(Boolean).map(n => ({ name: n, rel: "Guest" }))
+      : [];
+    list[i].slot = coming ? slot : null;
+    list[i].at = nowLabel() + " (updated)";
+    saveRsvps(list);
+    location.href = "done.html?code=" + encodeURIComponent(list[i].code);
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kenduri RSVP — Host Dashboard</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Host Dashboard</h1>
+    <p id="ev-meta"></p>
+    <div class="mode-toggle">
+      <button class="mode-btn active" id="tab-dash" onclick="setTab('dash')">📊 Summary</button>
+      <button class="mode-btn" id="tab-guests" onclick="setTab('guests')">🧾 Attendees</button>
+      <button class="mode-btn" id="tab-wishes" onclick="setTab('wishes')">💌 Ucapan &amp; Songs</button>
+      <button class="mode-btn" id="tab-checkin" onclick="setTab('checkin')">✅ Check-in</button>
+    </div>
+  </header>
+
+  <section id="panel-dash">
+    <h2>Overview</h2>
+    <div class="stats">
+      <div class="stat"><span class="stat-num" id="s-pax">0</span><span class="stat-label">coming (pax)</span></div>
+      <div class="stat"><span class="stat-num" id="s-yes">0</span><span class="stat-label">yes replies</span></div>
+      <div class="stat"><span class="stat-num" id="s-no">0</span><span class="stat-label">no replies</span></div>
+      <div class="stat"><span class="stat-num" id="s-fam">0</span><span class="stat-label">families</span></div>
+    </div>
+
+    <h2 style="margin-top:20px">Arrival slot fill</h2>
+    <div id="slot-bars"></div>
+
+    <h2 style="margin-top:20px">Menu tally (plates)</h2>
+    <div id="menu-bars"></div>
+
+    <button class="reset" onclick="copySummary()">📋 Copy summary</button>
+    <button class="reset" onclick="resetAll()">Clear all replies</button>
+  </section>
+
+  <section id="panel-guests" style="display:none">
+    <h2>Attendees</h2>
+    <table class="data">
+      <thead><tr><th>Guest</th><th>Contact</th><th>Pax</th><th>Slot</th><th>Menu</th><th>Notes</th><th>Received</th></tr></thead>
+      <tbody id="guest-rows"></tbody>
+    </table>
+  </section>
+
+  <section id="panel-wishes" style="display:none">
+    <h2>Ucapan wall</h2>
+    <div id="wishes"></div>
+    <h2 style="margin-top:20px">Song requests 🎤</h2>
+    <div id="songs"></div>
+  </section>
+
+  <section id="panel-checkin" style="display:none">
+    <h2>Entrance check-in</h2>
+    <p style="color:var(--muted);font-size:0.9rem">Guest shows their e-badge — key in the code (or type the name) and tap Check in.</p>
+    <div class="checkin-row">
+      <input type="text" id="ci-input" placeholder="KDR26-XXXXXX or guest name">
+      <button class="btn" onclick="checkIn()">Check in</button>
+    </div>
+    <p class="error" id="ci-msg"></p>
+    <p class="arrived-count">Arrived: <b id="ci-arrived">0</b> / <span id="ci-expected">0</span> expected pax</p>
+    <table class="data">
+      <thead><tr><th>Guest</th><th>Code</th><th>Pax</th><th>Slot</th><th>Status</th><th></th></tr></thead>
+      <tbody id="ci-rows"></tbody>
+    </table>
+  </section>
+
+  <p style="text-align:center;margin-top:16px"><a href="index.html">← Back to welcome page</a></p>
+</div>
+
+<script src="js/app.js"></script>
+<script>
+  document.getElementById("ev-meta").textContent =
+    KENDURI.couple + " · " + KENDURI.venue + " · 12 Dec 2026";
+
+  function setTab(t) {
+    ["dash", "guests", "wishes", "checkin"].forEach(x => {
+      document.getElementById("panel-" + x).style.display = x === t ? "block" : "none";
+      document.getElementById("tab-" + x).classList.toggle("active", x === t);
+    });
+  }
+
+  // ---- check-in ----
+  function checkIn() {
+    const q = document.getElementById("ci-input").value.trim();
+    const msg = document.getElementById("ci-msg");
+    if (!q) { msg.textContent = "Type a code or name first."; return; }
+    const list = loadRsvps();
+    const rec = findByCode(list, q) || list.find(r => r.coming && r.name.toLowerCase().includes(q.toLowerCase()));
+    if (!rec || !rec.coming) { msg.textContent = "No coming guest matches \"" + q + "\"."; return; }
+    rec.arrived = !rec.arrived;
+    saveRsvps(list);
+    msg.textContent = rec.arrived
+      ? "✔ " + rec.name + " checked in (" + paxOf(rec) + " pax)."
+      : "Undone: " + rec.name + " marked as not arrived.";
+    msg.style.color = rec.arrived ? "var(--yes)" : "var(--muted)";
+    document.getElementById("ci-input").value = "";
+    render();
+  }
+
+  function render() {
+    const list = loadRsvps();
+    const yes = list.filter(r => r.coming);
+    const no = list.filter(r => !r.coming);
+    const pax = totalPax(list);
+
+    document.getElementById("s-pax").textContent = pax;
+    document.getElementById("s-yes").textContent = yes.length;
+    document.getElementById("s-no").textContent = no.length;
+    document.getElementById("s-fam").textContent = yes.length;
+
+    // slot fill bars
+    const sb = document.getElementById("slot-bars");
+    sb.innerHTML = "";
+    KENDURI.slots.forEach(s => {
+      const taken = yes.filter(r => r.slot === s.id).reduce((sum, r) => sum + paxOf(r), 0);
+      const pct = Math.min(100, Math.round((taken / s.capacity) * 100));
+      sb.insertAdjacentHTML("beforeend",
+        `<div class="hbar-row"><span class="hbar-name">${s.label}</span>
+         <div class="hbar-track"><div class="hbar-fill" style="width:${pct}%"></div></div>
+         <span class="hbar-val">${taken}/${s.capacity}</span></div>`);
+    });
+
+    // menu tally bars
+    const mb = document.getElementById("menu-bars");
+    mb.innerHTML = "";
+    const tally = KENDURI.dishes.map(d => ({ d, n: yes.filter(r => r.dishes.includes(d.id)).length }));
+    const maxN = Math.max(1, ...tally.map(t => t.n));
+    tally.forEach(t => {
+      mb.insertAdjacentHTML("beforeend",
+        `<div class="hbar-row"><span class="hbar-name">${t.d.name}</span>
+         <div class="hbar-track"><div class="hbar-fill" style="width:${Math.round((t.n / maxN) * 100)}%"></div></div>
+         <span class="hbar-val">${t.n}</span></div>`);
+    });
+
+    // attendee table
+    const rows = document.getElementById("guest-rows");
+    rows.innerHTML = "";
+    [...list].reverse().forEach(r => {
+      const slot = r.slot ? slotById(r.slot).label : "—";
+      const menu = r.dishes.map(id => dishById(id).name).join(", ") || "—";
+      const members = r.members.map(m => `${m.name} (${m.rel})`).join(", ");
+      const notes = [
+        r.dietary.length ? "Dietary: " + r.dietary.join(", ") : "",
+        r.gift && r.gift !== "none" ? "Gift: " + r.gift : "",
+        members ? "With: " + members : "",
+        r.song ? "Song: " + r.song : ""
+      ].filter(Boolean).join(" · ") || "—";
+      rows.insertAdjacentHTML("beforeend", `<tr>
+        <td><b>${r.name}</b><br><span class="badge ${r.coming ? "yes" : "no"}">${r.coming ? "Coming" : "Not coming"}</span></td>
+        <td>${r.phone}<br>${r.email}</td>
+        <td>${paxOf(r) || "—"}</td>
+        <td>${slot}</td>
+        <td>${menu}</td>
+        <td>${notes}</td>
+        <td class="time">${r.at}</td>
+      </tr>`);
+    });
+
+    // wishes & songs
+    const w = document.getElementById("wishes");
+    w.innerHTML = "";
+    list.filter(r => r.wish).forEach(r => {
+      w.insertAdjacentHTML("beforeend", `<div class="wish-card"><span class="w-name">${r.name}</span> — ${r.wish}</div>`);
+    });
+    if (!w.innerHTML) w.innerHTML = "<p style='color:var(--muted);font-size:0.9rem'>No ucapan yet.</p>";
+
+    const sg = document.getElementById("songs");
+    sg.innerHTML = "";
+    list.filter(r => r.song).forEach(r => {
+      sg.insertAdjacentHTML("beforeend", `<div class="wish-card">🎤 <span class="w-name">${r.name}</span> requests <b>${r.song}</b></div>`);
+    });
+    if (!sg.innerHTML) sg.innerHTML = "<p style='color:var(--muted);font-size:0.9rem'>No song requests yet.</p>";
+
+    // check-in table
+    const ci = document.getElementById("ci-rows");
+    ci.innerHTML = "";
+    const comingList = list.filter(r => r.coming);
+    document.getElementById("ci-expected").textContent = pax;
+    document.getElementById("ci-arrived").textContent = comingList.filter(r => r.arrived).reduce((s, r) => s + paxOf(r), 0);
+    comingList.forEach(r => {
+      const slot = r.slot ? slotById(r.slot).label : "—";
+      ci.insertAdjacentHTML("beforeend", `<tr>
+        <td><b>${r.name}</b></td>
+        <td class="time">${r.code || "—"}</td>
+        <td>${paxOf(r)}</td>
+        <td>${slot}</td>
+        <td><span class="badge ${r.arrived ? "yes" : "no"}">${r.arrived ? "Arrived" : "Expected"}</span></td>
+        <td><button class="reset" style="margin-top:0" onclick="toggleArrive('${r.id}')">${r.arrived ? "Undo" : "Check in"}</button></td>
+      </tr>`);
+    });
+  }
+
+  function toggleArrive(id) {
+    const list = loadRsvps();
+    const r = list.find(x => x.id === id);
+    if (r) { r.arrived = !r.arrived; saveRsvps(list); render(); }
+  }
+
+  function copySummary() {
+    const list = loadRsvps();
+    const yes = list.filter(r => r.coming);
+    const lines = [
+      "KENDURI RSVP SUMMARY — " + KENDURI.couple,
+      "Total pax: " + totalPax(list),
+      "Yes: " + yes.length + " · No: " + list.filter(r => !r.coming).length,
+      "",
+      "BY SLOT:",
+      ...KENDURI.slots.map(s => {
+        const t = yes.filter(r => r.slot === s.id).reduce((sum, r) => sum + paxOf(r), 0);
+        return s.label + ": " + t + "/" + s.capacity;
+      }),
+      "",
+      "MENU TALLY:",
+      ...KENDURI.dishes.map(d => d.name + ": " + yes.filter(r => r.dishes.includes(d.id)).length)
+    ];
+    navigator.clipboard.writeText(lines.join("\n")).then(
+      () => alert("Summary copied to clipboard."),
+      () => alert(lines.join("\n")) // fallback shows the text
+    );
+  }
+
+  function resetAll() {
+    if (!confirm("Clear all replies? This removes every RSVP from this browser.")) return;
+    saveRsvps([]);
+    render();
+  }
+
+  render();
+</script>
+</body>
+</html>
